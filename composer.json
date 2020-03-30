@@ -10,7 +10,10 @@
     }
   ],
   "minimum-stability": "dev",
-  "require": {},
+  "require": {
+    "php-amqplib/php-amqplib": "^2.11",
+    "1kmenu/utils": "@dev"
+  },
   "autoload": {
     "psr-4": {
       "XrTools\\": "src"

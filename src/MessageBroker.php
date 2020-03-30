@@ -12,7 +12,6 @@ use \PhpAmqpLib\Exception\AMQPProtocolConnectionException;
 use \PhpAmqpLib\Channel\AMQPChannel;
 use \PhpAmqpLib\Message\AMQPMessage;
 use \XrTools\Utils;
-use \XrTools\Utils\DebugMessages;
 
 /**
  * Message Broker
@@ -35,7 +34,7 @@ class MessageBroker
 	protected $channel;
 
 	/**
-	 * @var DebugMessages
+	 * @var Utils\DebugMessages
 	 */
 	protected $dbg;
 
