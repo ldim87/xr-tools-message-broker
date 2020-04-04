@@ -8,6 +8,7 @@
 namespace XrTools;
 
 use \PhpAmqpLib\Connection\AMQPStreamConnection;
+use \PhpAmqpLib\Connection\AMQPSSLConnection;
 use \PhpAmqpLib\Exception\AMQPProtocolConnectionException;
 use \PhpAmqpLib\Channel\AMQPChannel;
 use \PhpAmqpLib\Message\AMQPMessage;
@@ -50,13 +51,48 @@ class MessageBroker
 	){
 		$this->dbg = $utils->dbg();
 
+		if(!empty($connectionParams['url'])){
+
+			$url = parse_url($connectionParams['url']);
+			
+			$vhost = substr($url['path'], 1);
+			
+			if($url['scheme'] === "amqps") {
+				
+				$connectionParams['ssl_opts'] = $connectionParams['ssl_opts'] ?? ['capath' => '/etc/ssl/certs'];
+				$connectionParams['host'] = $url['host'];
+				$connectionParams['port'] = $url['port'] ?? $connectionParams['port'] ?? 5671;
+				$connectionParams['user'] = $url['user'];
+				$connectionParams['password'] = $url['pass'];
+				$connectionParams['vhost'] = $vhost;
+
+			} else {
+
+				$connectionParams['host'] = $url['host'];
+				$connectionParams['port'] = $url['port'] ?? $connectionParams['port'] ?? 5672;
+				$connectionParams['user'] = $url['user'];
+				$connectionParams['password'] = $url['pass'];
+				$connectionParams['vhost'] = $vhost;
+				
+			}
+		}
+
 		if (
 			empty($connectionParams['host'])
-			|| empty($connectionParams['port'])
 			|| empty($connectionParams['user'])
 			|| empty($connectionParams['password'])
 		){
 			throw new \Exception('Params list is empty or invalid');
+		}
+
+		// default port
+		if(empty($connectionParams['port'])){
+			$connectionParams['port'] = 5672;
+		}
+
+		// default port
+		if(empty($connectionParams['vhost'])){
+			$connectionParams['vhost'] = '/';
 		}
 
 		$this->params = $connectionParams;
@@ -71,7 +107,7 @@ class MessageBroker
 	 * @return bool
 	 * @throws \Exception
 	 */
-	public function sent(string $consumer, string $method, $data, array $opt = [])
+	public function send(string $consumer, string $method, $data, array $opt = [])
 	{
 		$debug = ! empty($opt['debug']);
 
@@ -80,8 +116,11 @@ class MessageBroker
 		}
 
 		if (empty($consumer)) {
-			if ($debug)
+			
+			if ($debug){
 				$this->dbg->log('No consumer', __METHOD__);
+			}
+			
 			return false;
 		}
 
@@ -102,7 +141,7 @@ class MessageBroker
 	 * @return bool
 	 * @throws \Exception
 	 */
-	public function sentAll(string $method, $data, array $opt = [])
+	public function fanout(string $method, $data, array $opt = [])
 	{
 		$debug = ! empty($opt['debug']);
 
@@ -114,7 +153,7 @@ class MessageBroker
 			return false;
 		}
 
-		$this->channel->basic_publish($msg, 'amq.fanout');
+		$this->channel->basic_publish($msg, $opt['exchange'] ?? 'amq.fanout');
 
 		return true;
 	}
@@ -131,8 +170,11 @@ class MessageBroker
 		$debug = ! empty($opt['debug']);
 
 		if (empty($method)) {
-			if ($debug)
+
+			if ($debug){
 				$this->dbg->log('Method not specified', __METHOD__);
+			}
+
 			return false;
 		}
 
@@ -160,17 +202,36 @@ class MessageBroker
 			return true;
 		}
 
-		try {
-			$connect = new AMQPStreamConnection(
-				$this->params['host'],
-				$this->params['port'],
-				$this->params['user'],
-				$this->params['password']
-			);
+		try 
+		{
+			if(!empty($this->params['ssl_opts']))
+			{
+				$connect = new AMQPSSLConnection(
+					$this->params['host'],
+					$this->params['port'],
+					$this->params['user'],
+					$this->params['password'],
+					$this->params['vhost'],
+					$this->params['ssl_opts']
+				);
+			}
+			else
+			{
+				$connect = new AMQPStreamConnection(
+					$this->params['host'],
+					$this->params['port'],
+					$this->params['user'],
+					$this->params['password'],
+					$this->params['vhost']
+				);
+			}
 		}
 		catch (AMQPProtocolConnectionException | \ErrorException $e) {
-			if ($debug)
+			
+			if ($debug){
 				$this->dbg->log( $e->getMessage(), __METHOD__);
+			}
+			
 			return false;
 		}
 
